@@ -214,12 +214,29 @@ const byte ROBOT[][8] = {
      B00111100,
      B00000000}};
 
+const byte PLEASED[][8] = {
+    {B00000000,
+     B01000010,
+     B10100101,
+     B00000000,
+     B00000000,
+     B00000000,
+     B00100100,
+     B00011000},
+    {B00000000,
+     B00000000,
+     B01000010,
+     B00000000,
+     B00000000,
+     B00000000,
+     B00100100,
+     B00011000}};
+
 const IPAddress apIP(192, 168, 1, 1);
 const bool prod = true; //CHANGE IN PRODUCTION
 const char *apSSID = "BMO Setup";
-const int FW_VERSION = 54;
+const int FW_VERSION = 60;
 const char *fwUrlBase = "http://printrworks.co.uk/bmo/ota/";
-const char *ipURL = "http://printrworks.co.uk/bmo/ip.php?ip=";
 
 boolean settingMode;
 String ssidList;
@@ -236,16 +253,22 @@ int mood = 0; // HAPPY = 0
               // DEAD = 5
               // AWKWARD = 6
               // ROBOT = 7
+              // PLEASED = 8
 os_timer_t blinkTimer;
+os_timer_t frameTimer;
+os_timer_t updateTimer;
 bool shouldBlink = false;
+bool shouldDraw = false;
+bool shouldUpdate = false;
 byte brightness = 0xE1;
 bool displayOn = true;
 int blinkLow = 1500;
 int blinkHigh = 7000;
+uint8_t frameTime = 200;
 
 void checkForUpdates();
 void doLights();
-void drawFace(int frame);
+void drawFace();
 boolean restoreConfig();
 boolean checkConnection();
 void startWebServer();
@@ -255,10 +278,22 @@ String makePage(String title, String contents);
 void i2cWrite(byte send);
 void doTimer(void *arg);
 void forceUpdate();
+void lightOnTime(void *arg);
+void updateOnTime(void *arg);
 
 void doTimer(void *arg)
 {
   shouldBlink = true;
+}
+
+void lightOnTime(void *arg)
+{
+  shouldDraw = true;
+}
+
+void updateOnTime(void *arg)
+{
+  shouldUpdate = true;
 }
 
 void setup()
@@ -268,6 +303,8 @@ void setup()
   delay(1000);
 
   os_timer_setfn(&blinkTimer, (os_timer_func_t *)doTimer, (void *)0);
+  os_timer_setfn(&frameTimer, (os_timer_func_t *)lightOnTime, (void *)0);
+  os_timer_setfn(&updateTimer, (os_timer_func_t *)updateOnTime, (void *)0);
 
   Wire.begin();
   i2cWrite(0x21);
@@ -314,6 +351,8 @@ void setup()
       server.begin();
 
       os_timer_arm(&blinkTimer, ESP8266TrueRandom.random(blinkLow, blinkHigh), false);
+      os_timer_arm(&frameTimer, frameTime, false);
+      os_timer_arm(&updateTimer, 1 * 60 * 60 * 1000, true);
       return;
     }
   }
@@ -329,19 +368,23 @@ void i2cWrite(byte send)
   Serial.println(Wire.endTransmission()); // stop transmitting
 }
 
-int clock = 0;
-
 void loop()
 {
 
   if (!settingMode)
   {
-    clock = (clock + 1 % 10000000);
-    if (clock == (10000000 - 1) && !settingMode)
+    if (shouldUpdate && !settingMode)
     {
       checkForUpdates();
+      shouldUpdate = false;
     }
-    doLights();
+
+    if (shouldDraw)
+    {
+      doLights();
+      os_timer_disarm(&frameTimer);
+      os_timer_arm(&frameTimer, frameTime, false);
+    }
 
     WiFiClient client = server.available(); // Listen for incoming clients
 
@@ -407,6 +450,10 @@ void loop()
               {
                 mood = 7;
               }
+              else if (header.indexOf("GET /face/pleased") >= 0)
+              {
+                mood = 8;
+              }
               else if (header.indexOf("GET /resetWifi") >= 0)
               {
                 for (int i = 0; i < 96; ++i)
@@ -428,13 +475,13 @@ void loop()
               }
               else if (header.indexOf("GET /blink/up") >= 0)
               {
-                blinkLow = blinkLow + 500;
-                blinkHigh = blinkHigh + 500;
+                blinkLow = blinkLow + (uint8_t)500;
+                blinkHigh = blinkHigh + (uint8_t)500;
               }
               else if (header.indexOf("GET /blink/down") >= 0)
               {
-                blinkLow = blinkLow - 500;
-                blinkHigh = blinkHigh - 500;
+                blinkLow = blinkLow - (uint8_t)500;
+                blinkHigh = blinkHigh - (uint8_t)500;
               }
               else if (header.indexOf("GET /power") >= 0)
               {
@@ -447,6 +494,14 @@ void loop()
               else if (header.indexOf("GET /update/force") >= 0)
               {
                 forceUpdate();
+              }
+              else if (header.indexOf("GET /frame/up") >= 0)
+              {
+                frameTime = frameTime + (uint8_t)20;
+              }
+              else if (header.indexOf("GET /frame/down") >= 0)
+              {
+                frameTime = frameTime - (uint8_t)20;
               }
 
               if (!(header.indexOf("GET /description.xml") >= 0))
@@ -468,9 +523,6 @@ void loop()
                   client.println("<p>Press buttons for rewards!</p>");
                   client.println("<p><a href=\"/update/check\"><button class=\"button\">Check for updates</button></a></p>");
                   client.println("<p><a href=\"/update/force\"><button class=\"button\">Force update</button></a></p>");
-                  client.println("<p>Change blink rate</p>");
-                  client.println("<p><a href=\"/blink/up\"><button class=\"button\">Up</button></a>");
-                  client.println("<a href=\"/blink/down\"><button class=\"button\">Down</button></a></p>");
                   client.println("</body></html>");
                   client.println("<footer><p>Neil Trotter 2018</p></footer>");
                 }
@@ -480,7 +532,7 @@ void loop()
                   client.println("<body><h1>BMO Face controller</h1>");
 
                   client.println("<p><a href=\"/power\"><button class=\"button\">On / Off</button></a></p>");
-                  client.println("<p>Change face</p>");
+                  client.println("<h2>Change face</h2>");
                   client.println("<p><a href=\"/face/happy\"><button class=\"button\">Happy</button></a>");
                   client.println("<a href=\"/face/sad\"><button class=\"button\">Sad</button></a>");
                   client.println("<a href=\"/face/angry\"><button class=\"button\">Angry</button></a></p>");
@@ -488,10 +540,23 @@ void loop()
                   client.println("<a href=\"/face/shocked\"><button class=\"button\">Shocked</button></a>");
                   client.println("<a href=\"/face/awkward\"><button class=\"button\">Awkward</button></a></p>");
                   client.println("<p><a href=\"/face/dead\"><button class=\"button\">Dead</button></a>");
-                  client.println("<a href=\"/face/robot\"><button class=\"button\">Robot</button></a></p>");
-                  client.println("<p>Change brightness</p>");
+                  client.println("<a href=\"/face/robot\"><button class=\"button\">Robot</button></a>");
+                  client.println("<a href=\"/face/pleased\"><button class=\"button\">Pleased</button></a></p>");
+                  client.println("<h2>Change brightness</h2>");
                   client.println("<p><a href=\"/brightness/up\"><button class=\"button\">Up</button></a>");
                   client.println("<a href=\"/brightness/down\"><button class=\"button\">Down</button></a></p>");
+                  client.println("<h2>Change Blink Rate: ");
+                  client.print(blinkLow);
+                  client.print("ms to ");
+                  client.print(blinkHigh);
+                  client.print("ms</h2>");
+                  client.println("<p><a href=\"/blink/up\"><button class=\"button\">Up</button></a>");
+                  client.println("<a href=\"/blink/down\"><button class=\"button\">Down</button></a></p>");
+                  client.println("<h2>Change Blink Time: ");
+                  client.print(frameTime);
+                  client.print("ms</h2>");
+                  client.println("<p><a href=\"/frame/up\"><button class=\"button\">Up</button></a>");
+                  client.println("<a href=\"/frame/down\"><button class=\"button\">Down</button></a></p>");
                   client.print("<p>Version: ");
                   client.print(String(FW_VERSION));
                   client.println("</p>");
@@ -560,22 +625,19 @@ void loop()
   webServer.handleClient();
 }
 
-long prevMillis = 0;
-
 void doLights()
 {
-
-  if (millis() - prevMillis > 200)
+  if (shouldDraw)
   {
-    drawFace(0);
-    prevMillis = millis();
+    drawFace();
+    shouldDraw = false;
   }
 }
 
 int rFrame = 0;
 bool lastEnd = false;
 
-void drawFace(int frame)
+void drawFace()
 {
   uint8_t curFrame = 0;
 
@@ -662,16 +724,27 @@ void drawFace(int frame)
     }
     case 7:
     {
-      if(rFrame > 5){
+      if (rFrame > 5)
+      {
         lastEnd = true;
-      } 
-      if(rFrame < 1) {
+      }
+      if (rFrame < 1)
+      {
         lastEnd = false;
       }
       rFrame = (lastEnd ? rFrame - 1 : rFrame + 1);
       for (int i = 0; i < 8; i++)
       {
         Wire.write(ROBOT[rFrame][i]);
+        Wire.write(0x00);
+      }
+      break;
+    }
+    case 8:
+    {
+      for (int i = 0; i < 8; i++)
+      {
+        Wire.write(PLEASED[curFrame][i]);
         Wire.write(0x00);
       }
       break;

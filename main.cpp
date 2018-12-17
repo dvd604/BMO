@@ -232,10 +232,222 @@ const byte PLEASED[][8] = {
      B00100100,
      B00011000}};
 
+const byte ALPHA[][8] = {
+    {B00000000,
+     B00111100,
+     B01100110,
+     B01100110,
+     B01111110,
+     B01100110,
+     B01100110,
+     B01100110},
+    {B00000000,
+     B01111100,
+     B01100110,
+     B01100110,
+     B01111100,
+     B01100110,
+     B01100110,
+     B01111100},
+    {B00000000,
+     B00111100,
+     B01100110,
+     B01100000,
+     B01100000,
+     B01100000,
+     B01100110,
+     B00111100},
+    {B00000000,
+     B01111100,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01111100},
+    {B00000000,
+     B01111110,
+     B01100000,
+     B01100000,
+     B01111100,
+     B01100000,
+     B01100000,
+     B01111110},
+    {B00000000,
+     B01111110,
+     B01100000,
+     B01100000,
+     B01111100,
+     B01100000,
+     B01100000,
+     B01100000},
+    {B00000000,
+     B00111100,
+     B01100110,
+     B01100000,
+     B01100000,
+     B01101110,
+     B01100110,
+     B00111100},
+    {B00000000,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01111110,
+     B01100110,
+     B01100110,
+     B01100110},
+    {B00000000,
+     B00111100,
+     B00011000,
+     B00011000,
+     B00011000,
+     B00011000,
+     B00011000,
+     B00111100},
+    {B00000000,
+     B00011110,
+     B00001100,
+     B00001100,
+     B00001100,
+     B01101100,
+     B01101100,
+     B00111000},
+    {B00000000,
+     B01100110,
+     B01101100,
+     B01111000,
+     B01110000,
+     B01111000,
+     B01101100,
+     B01100110},
+    {B00000000,
+     B01100000,
+     B01100000,
+     B01100000,
+     B01100000,
+     B01100000,
+     B01100000,
+     B01111110},
+    {B00000000,
+     B01100011,
+     B01110111,
+     B01111111,
+     B01101011,
+     B01100011,
+     B01100011,
+     B01100011},
+    {B00000000,
+     B01100011,
+     B01110011,
+     B01111011,
+     B01101111,
+     B01100111,
+     B01100011,
+     B01100011},
+    {B00000000,
+     B00111100,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B00111100},
+    {B00000000,
+     B01111100,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01111100,
+     B01100000,
+     B01100000},
+    {B00000000,
+     B00111100,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01101110,
+     B00111100,
+     B00000110},
+    {B00000000,
+     B01111100,
+     B01100110,
+     B01100110,
+     B01111100,
+     B01111000,
+     B01101100,
+     B01100110},
+    {B00000000,
+     B00111100,
+     B01100110,
+     B01100000,
+     B00111100,
+     B00000110,
+     B01100110,
+     B00111100},
+    {B00000000,
+     B01111110,
+     B01011010,
+     B00011000,
+     B00011000,
+     B00011000,
+     B00011000,
+     B00011000},
+    {B00000000,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B00111110},
+    {B00000000,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B01100110,
+     B00111100,
+     B00011000},
+    {B00000000,
+     B01100011,
+     B01100011,
+     B01100011,
+     B01101011,
+     B01111111,
+     B01110111,
+     B01100011},
+    {B00000000,
+     B01100011,
+     B01100011,
+     B00110110,
+     B00011100,
+     B00110110,
+     B01100011,
+     B01100011},
+    {B00000000,
+     B01100110,
+     B01100110,
+     B01100110,
+     B00111100,
+     B00011000,
+     B00011000,
+     B00011000},
+    {B00000000,
+     B01111110,
+     B00000110,
+     B00001100,
+     B00011000,
+     B00110000,
+     B01100000,
+     B01111110}};
+
+byte textFrames[99][8];
+
 const IPAddress apIP(192, 168, 1, 1);
 const bool prod = true; //CHANGE IN PRODUCTION
 const char *apSSID = "BMO Setup";
-const int FW_VERSION = 60;
+const int FW_VERSION = 67;
 const char *fwUrlBase = "http://printrworks.co.uk/bmo/ota/";
 
 boolean settingMode;
@@ -254,6 +466,12 @@ int mood = 0; // HAPPY = 0
               // AWKWARD = 6
               // ROBOT = 7
               // PLEASED = 8
+              // SCROLLING = 98
+              // WRITING = 99
+char wordStream[99];
+uint8_t letterIndex = 0;
+uint16_t letterTime = 1000;
+uint16_t scrollTime = 200;
 os_timer_t blinkTimer;
 os_timer_t frameTimer;
 os_timer_t updateTimer;
@@ -262,9 +480,13 @@ bool shouldDraw = false;
 bool shouldUpdate = false;
 byte brightness = 0xE1;
 bool displayOn = true;
-int blinkLow = 1500;
-int blinkHigh = 7000;
-uint8_t frameTime = 200;
+uint16_t blinkLow = 1500;
+uint16_t blinkHigh = 7000;
+uint16_t frameTime = 200;
+uint8_t frameScrollCount = 0;
+uint16_t frameScrollTotal = 0;
+uint8_t frameScrollOffset = 0;
+byte curScrollFrame[8];
 
 void checkForUpdates();
 void doLights();
@@ -280,6 +502,9 @@ void doTimer(void *arg);
 void forceUpdate();
 void lightOnTime(void *arg);
 void updateOnTime(void *arg);
+unsigned char reverse(unsigned char b);
+void copyFrameData(uint8_t number, char frame);
+void getNextFrame();
 
 void doTimer(void *arg)
 {
@@ -301,6 +526,17 @@ void setup()
   Serial.begin(78440);
   EEPROM.begin(512);
   delay(1000);
+
+  wordStream[0] = 't';
+  wordStream[1] = 'e';
+  wordStream[2] = 's';
+  wordStream[3] = 't';
+  wordStream[4] = '?';
+
+  copyFrameData(0, 't');
+  copyFrameData(1, 'e');
+  copyFrameData(2, 's');
+  copyFrameData(3, 't');
 
   os_timer_setfn(&blinkTimer, (os_timer_func_t *)doTimer, (void *)0);
   os_timer_setfn(&frameTimer, (os_timer_func_t *)lightOnTime, (void *)0);
@@ -382,8 +618,13 @@ void loop()
     if (shouldDraw)
     {
       doLights();
-      os_timer_disarm(&frameTimer);
-      os_timer_arm(&frameTimer, frameTime, false);
+      if(mood == 99 || mood == 98){
+        os_timer_disarm(&frameTimer);
+        os_timer_arm(&frameTimer, (mood == 99 ? letterTime : scrollTime), false);
+      } else {
+        os_timer_disarm(&frameTimer);
+        os_timer_arm(&frameTimer, frameTime, false);
+      }
     }
 
     WiFiClient client = server.available(); // Listen for incoming clients
@@ -454,6 +695,33 @@ void loop()
               {
                 mood = 8;
               }
+              else if (header.indexOf("GET /face/scroll") >= 0)
+              {
+                mood = 98;
+              }
+              else if (header.indexOf("GET /face/setText?") >= 0)
+              {
+                uint8_t startIndex = header.indexOf("?inWriting=");
+                uint8_t endIndex = header.indexOf("&anim=");
+                String text = header.substring(startIndex + 11, endIndex);
+                uint8_t lastIndex = 0;
+                text.toLowerCase();
+                if(header.indexOf("write") > 0){
+                  for (int i = 0; i < text.length(); i++)
+                  {
+                    wordStream[i] = text[i];
+                    lastIndex = i;
+                  }
+                  wordStream[lastIndex + 1] = '?';
+                  mood = 99;
+                } else {
+                  for (int i = 0; i < text.length(); i++)
+                  {
+                    copyFrameData(i,text[i]);
+                  }
+                  mood = 98;
+                }
+              }
               else if (header.indexOf("GET /resetWifi") >= 0)
               {
                 for (int i = 0; i < 96; ++i)
@@ -523,6 +791,10 @@ void loop()
                   client.println("<p>Press buttons for rewards!</p>");
                   client.println("<p><a href=\"/update/check\"><button class=\"button\">Check for updates</button></a></p>");
                   client.println("<p><a href=\"/update/force\"><button class=\"button\">Force update</button></a></p>");
+                  client.println("<p><a href=\"/face/scroll\"><button class=\"button\">[Testing] Scroll</button></a></p>");
+                  client.println("<p>");
+                  client.println(wordStream);
+                  client.println("</p>");
                   client.println("</body></html>");
                   client.println("<footer><p>Neil Trotter 2018</p></footer>");
                 }
@@ -542,6 +814,14 @@ void loop()
                   client.println("<p><a href=\"/face/dead\"><button class=\"button\">Dead</button></a>");
                   client.println("<a href=\"/face/robot\"><button class=\"button\">Robot</button></a>");
                   client.println("<a href=\"/face/pleased\"><button class=\"button\">Pleased</button></a></p>");
+
+                  client.println("<form action=\"/face/setText\" method=\"get\">");
+                  client.println("<input type=\"text\" name=\"inWriting\" value=\"Text\"><br>");
+                  client.println("<select name=\"anim\">");
+                  client.println("<option value=\"write\">Write</option>");
+                  client.println("<option value=\"scroll\">Scroll</option></select>");
+                  client.println("<input type=\"submit\" class=\"button\" value=\"Write!\"> </form>");
+
                   client.println("<h2>Change brightness</h2>");
                   client.println("<p><a href=\"/brightness/up\"><button class=\"button\">Up</button></a>");
                   client.println("<a href=\"/brightness/down\"><button class=\"button\">Down</button></a></p>");
@@ -552,11 +832,13 @@ void loop()
                   client.print("ms</h2>");
                   client.println("<p><a href=\"/blink/up\"><button class=\"button\">Up</button></a>");
                   client.println("<a href=\"/blink/down\"><button class=\"button\">Down</button></a></p>");
+
                   client.println("<h2>Change Blink Time: ");
                   client.print(frameTime);
                   client.print("ms</h2>");
                   client.println("<p><a href=\"/frame/up\"><button class=\"button\">Up</button></a>");
                   client.println("<a href=\"/frame/down\"><button class=\"button\">Down</button></a></p>");
+
                   client.print("<p>Version: ");
                   client.print(String(FW_VERSION));
                   client.println("</p>");
@@ -745,6 +1027,33 @@ void drawFace()
       for (int i = 0; i < 8; i++)
       {
         Wire.write(PLEASED[curFrame][i]);
+        Wire.write(0x00);
+      }
+      break;
+    }
+
+    case 99:
+    {
+      if (wordStream[letterIndex] == '?')
+      {
+        letterIndex = 0;
+      }
+
+      for (int i = 0; i < 8; i++)
+      {
+        Wire.write(reverse(ALPHA[wordStream[letterIndex] - 97][i]));
+        Wire.write(0x00);
+      }
+
+      letterIndex = letterIndex + 1;
+      break;
+    }
+    case 98:
+    {
+      getNextFrame();
+      for (int i = 0; i < 8; i++)
+      {
+        Wire.write(curScrollFrame[i]);
         Wire.write(0x00);
       }
       break;
@@ -1063,5 +1372,41 @@ boolean restoreConfig()
   {
     Serial.println("Config not found.");
     return false;
+  }
+}
+
+unsigned char reverse(unsigned char b)
+{
+  b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+  b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+  b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+  return b;
+}
+
+void copyFrameData(uint8_t number, char frame)
+{
+  for (int i = 0; i < 8; i++)
+  {
+    textFrames[number][i] = ALPHA[frame - 97][i];
+  }
+}
+
+void getNextFrame()
+{
+  for (int i = 0; i < 8; i++)
+  {
+    curScrollFrame[i] = reverse(textFrames[frameScrollOffset][i]);
+    curScrollFrame[i] = curScrollFrame[i] >> frameScrollCount;
+    if(frameScrollCount > 2){
+      curScrollFrame[i] = reverse(textFrames[frameScrollOffset][i]) >> frameScrollCount | reverse(textFrames[frameScrollOffset+1][i] >> (8-frameScrollCount));
+    }
+  }
+  frameScrollCount = (frameScrollCount + 1) % 8;
+  frameScrollTotal++;
+  frameScrollOffset = frameScrollTotal / 8;
+  if(textFrames[frameScrollOffset][4]==0x00 && textFrames[frameScrollOffset+1][4]==0x00 && textFrames[frameScrollOffset+2][4]==0x00){
+    frameScrollOffset = 0;
+    frameScrollCount = 0;
+    frameScrollTotal = 0;
   }
 }
